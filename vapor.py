@@ -97,7 +97,7 @@ def api_app():
         id = tts.call(script, speaker=speaker)
         return JSONResponse(content={"id": id})
 
-    @app.get("/res/{hash:hash}")
+    @app.get("/res/{hash:str}")
     def get_res(hash: str):
         res = os.path.join(OUT_PATH, f"{hash}.wav")
         if not os.path.isfile(res):
