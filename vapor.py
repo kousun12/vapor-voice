@@ -99,7 +99,7 @@ def api_app():
 
     @app.get("/res/{hash:str}")
     def get_res(hash: str):
-        res = os.path.join(OUT_PATH, f"{hash}.wav")
+        res = os.path.join(OUT_PATH, hash)
         if not os.path.isfile(res):
             return Response(status_code=404)
         return FileResponse(res)
