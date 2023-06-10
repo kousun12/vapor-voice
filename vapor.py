@@ -7,6 +7,7 @@ from fastapi.responses import Response, FileResponse, JSONResponse
 
 OUT_PATH = "/root/outs"
 GPU = "A10G"
+SPEAKER = "v2/en_speaker_9"
 
 portal = """
 Renowned 21st century philosopher famous for the concept of VAPOR — that substance beyond Maslow's hierarchy that makes life matter, the will that pries open the portal, willing against the heat death of humanity, and the universe writ large.
@@ -30,10 +31,7 @@ He established the KNIGHTS OF VAPOR-TOWN, who continue to quest in alien dimensi
 
 
 def preload():
-    from bark.generation import (
-        generate_text_semantic,
-        preload_models,
-    )
+    from bark.generation import preload_models
 
     preload_models()
 
@@ -60,7 +58,7 @@ ov = SharedVolume().persist("vapor-outs")
 
 
 @stub.function(image=image, shared_volumes={OUT_PATH: ov}, gpu=GPU, timeout=60 * 30)
-def tts(script: str):
+def tts(script: str, speaker: str = SPEAKER):
     from bark import SAMPLE_RATE, generate_audio
     from scipy.io.wavfile import write as write_wav
 
@@ -68,18 +66,18 @@ def tts(script: str):
     import numpy as np
 
     sentences = nltk.sent_tokenize(script)
-    SPEAKER = "v2/en_speaker_9"
     silence = np.zeros(int(0.25 * SAMPLE_RATE))
 
     pieces = []
     for sentence in sentences:
-        audio_array = generate_audio(sentence, history_prompt=SPEAKER)
+        audio_array = generate_audio(sentence, history_prompt=speaker)
         pieces += [audio_array, silence.copy()]
 
-    hash = hashlib.md5(script.encode("utf-8")).hexdigest()
+    hash = hashlib.md5(f"{speaker}-{script}".encode("utf-8")).hexdigest()
     fp = f"/root/outs/{hash}.wav"
     write_wav(fp, SAMPLE_RATE, np.concatenate(pieces))
     print(f"wrote to {fp}")
+    return hash
 
 
 @stub.function(image=web_img, shared_volumes={OUT_PATH: ov})
@@ -94,13 +92,14 @@ def api_app():
         allow_headers=["*"],
     )
 
-    @app.post("/process")
-    async def process_video(prompt: str):
-        return JSONResponse(content={})
+    @app.post("/tts")
+    async def run_tts(script: str, speaker: str):
+        id = tts.call(script, speaker=speaker)
+        return JSONResponse(content={"id": id})
 
-    @app.get("/res/{path:path}")
-    def get_res(path: str):
-        res = os.path.join(OUT_PATH, path)
+    @app.get("/res/{hash:hash}")
+    def get_res(hash: str):
+        res = os.path.join(OUT_PATH, f"{hash}.wav")
         if not os.path.isfile(res):
             return Response(status_code=404)
         return FileResponse(res)
