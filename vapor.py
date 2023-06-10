@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 import os
+import hashlib
 from fastapi.middleware.cors import CORSMiddleware
 from modal import Image, Stub, SharedVolume, asgi_app
 from fastapi.responses import Response, FileResponse, JSONResponse
@@ -7,7 +8,7 @@ from fastapi.responses import Response, FileResponse, JSONResponse
 OUT_PATH = "/root/outs"
 GPU = "A10G"
 
-script = """
+portal = """
 Renowned 21st century philosopher famous for the concept of VAPOR — that substance beyond Maslow's hierarchy that makes life matter, the will that pries open the portal, willing against the heat death of humanity, and the universe writ large.
 
 He was also known as a composer, known for sounding like DEBUSSY FROM ANOTHER DIMENSION. His musical research into portals led to first contact with intelligent life in another dimension. AI musicologists from both dimensions continue to analyze his works, producing an infinite supply of portal opening musical devices, known as crowbars, also known collectively as THE MOON.
@@ -59,29 +60,26 @@ ov = SharedVolume().persist("vapor-outs")
 
 
 @stub.function(image=image, shared_volumes={OUT_PATH: ov}, gpu=GPU, timeout=60 * 30)
-def tts():
-    from bark.generation import (
-        generate_text_semantic,
-        preload_models,
-    )
-    from bark import SAMPLE_RATE, generate_audio, preload_models
+def tts(script: str):
+    from bark import SAMPLE_RATE, generate_audio
     from scipy.io.wavfile import write as write_wav
 
     import nltk
     import numpy as np
 
     sentences = nltk.sent_tokenize(script)
-    SPEAKER = "v2/en_speaker_2"
-    silence = np.zeros(int(0.25 * SAMPLE_RATE))  # quarter second of silence
+    SPEAKER = "v2/en_speaker_9"
+    silence = np.zeros(int(0.25 * SAMPLE_RATE))
 
     pieces = []
     for sentence in sentences:
         audio_array = generate_audio(sentence, history_prompt=SPEAKER)
         pieces += [audio_array, silence.copy()]
 
-    write_wav("/root/outs/vapor-2.wav", SAMPLE_RATE, np.concatenate(pieces))
-
-    print("foo")
+    hash = hashlib.md5(script.encode("utf-8")).hexdigest()
+    fp = f"/root/outs/{hash}.wav"
+    write_wav(fp, SAMPLE_RATE, np.concatenate(pieces))
+    print(f"wrote to {fp}")
 
 
 @stub.function(image=web_img, shared_volumes={OUT_PATH: ov})
