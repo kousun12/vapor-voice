@@ -102,6 +102,6 @@ def api_app():
         res = os.path.join(OUT_PATH, hash)
         if not os.path.isfile(res):
             return Response(status_code=404)
-        return FileResponse(res)
+        return FileResponse(res, media_type="audio/wav")
 
     return app
